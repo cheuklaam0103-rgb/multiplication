@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>寶可夢數學對戰 - 乘法挑戰</title>
+    <style>
+        :root {
+            --primary: #ffcb05;
+            --secondary: #2a75bb;
+            --hp-red: #ff5959;
+            --bg-color: #f2f2f2;
+        }
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { 
+            margin: 0; padding: 0; 
+            display: flex; justify-content: center; align-items: center; 
+            height: 100vh; background-color: #333;
+        }
+        #game-container {
+            width: 100%; max-width: 400px; height: 100vh; max-height: 700px;
+            background-color: var(--bg-color);
+            position: relative; overflow: hidden;
+            border-radius: 10px; box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+        .screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: none; flex-direction: column; padding: 20px;
+            background: linear-gradient(180deg, #87CEEB 0%, #E0F6FF 100%);
+        }
+        .screen.active { display: flex; }
+        
+        /* 標題與選單畫面 */
+        h1 { text-align: center; color: var(--secondary); text-shadow: 2px 2px 0 var(--primary); }
+        .collection-grid {
+            display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;
+            overflow-y: auto; flex-grow: 1; margin-bottom: 20px;
+        }
+        .pokemon-card {
+            background: white; border-radius: 10px; padding: 10px; text-align: center;
+            width: 45%; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.1s; border: 2px solid transparent;
+        }
+        .pokemon-card:hover { transform: translateY(-3px); border-color: var(--primary); }
+        .pokemon-card img { width: 80px; height: 80px; }
+        .wins-badge { font-size: 0.8em; color: gray; }
+
+        /* 對戰畫面 */
+        .battle-area { flex-grow: 1; position: relative; }
+        .hud { background: rgba(255,255,255,0.9); padding: 10px; border-radius: 10px; border: 2px solid #333; }
+        
+        /* 頂部：對手 */
+        .enemy-hud { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .enemy-sprite { position: absolute; top: 80px; right: 20px; width: 120px; }
+        
+        /* 玩家狀態 */
+        .player-sprite { position: absolute; bottom: 10px; left: 20px; width: 120px; }
+        .player-hud { position: absolute; bottom: 20px; left: 10px; right: 10px; display: flex; justify-content: space-between; align-items: center; }
+        
+        .hp-bar { color: var(--hp-red); font-size: 1.2rem; letter-spacing: 2px; }
+        .pokemon-name { font-weight: bold; font-size: 1.1rem; }
+
+        /* 中部：數學題 */
+        .question-box {
+            background: #fff; border: 3px solid var(--secondary); border-radius: 15px;
+            padding: 20px; margin: 20px 0; text-align: center;
+            font-size: 2.5rem; font-weight: bold; color: #333;
+            box-shadow: 0 4px 0 var(--secondary);
+            z-index: 10; position: relative;
+        }
+
+        /* 底部：答案按鈕 */
+        .answers-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 15px;
+            margin-bottom: 10px;
+        }
+        .btn-answer {
+            background-color: var(--primary); border: none; border-radius: 10px;
+            padding: 15px; font-size: 1.5rem; font-weight: bold; cursor: pointer;
+            box-shadow: 0 4px 0 #cc9a00; transition: all 0.1s; color: #333;
+        }
+        .btn-answer:active { transform: translateY(4px); box-shadow: 0 0 0 transparent; }
+        
+        /* 動畫效果 */
+        .shake { animation: shake 0.4s; }
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            50% { transform: translateX(5px); }
+            75% { transform: translateX(-5px); }
+            100% { transform: translateX(0); }
+        }
+
+        /* 結果畫面 */
+        #result-screen { justify-content: center; align-items: center; text-align: center; }
+        #result-msg { font-size: 1.5rem; font-weight: bold; margin: 20px 0; }
+        .btn-action {
+            background-color: var(--secondary); color: white; border: none;
+            padding: 15px 30px; font-size: 1.2rem; border-radius: 10px; cursor: pointer;
+            box-shadow: 0 4px 0 #1c4b78; margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="menu-screen" class="screen active">
+        <h1>寶可夢數學對戰</h1>
+        <p style="text-align: center; font-weight: bold;">選擇寶可夢，挑戰乘法對戰！</p>
+        <div class="collection-grid" id="collection-grid"></div>
+    </div>
+
+    <div id="battle-screen" class="screen">
+        <div class="battle-area">
+            <div class="hud enemy-hud">
+                <div>
+                    <div class="pokemon-name" id="enemy-name">野生寶可夢</div>
+                    <div class="hp-bar" id="enemy-hp">❤️❤️❤️</div>
+                </div>
+            </div>
+            <img id="enemy-img" class="enemy-sprite" src="" alt="Enemy">
+            <img id="player-img" class="player-sprite" src="" alt="Player">
+        </div>
+
+        <div class="question-box" id="math-question">8 × 6 = ?</div>
+
+        <div class="answers-grid" id="answers-grid"></div>
+        
+        <div class="hud player-hud" style="margin-top: 10px; position: relative; bottom: 0;">
+            <div>
+                <div class="pokemon-name" id="player-name">我的寶可夢</div>
+                <div class="hp-bar" id="player-hp">❤️❤️❤️</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="result-screen" class="screen">
+        <h1 id="result-title">對戰結束</h1>
+        <img id="result-img" src="" alt="Result" style="width: 150px; height: 150px;">
+        <div id="result-msg">你捕捉到了！</div>
+        <button class="btn-action" onclick="showMenu()">返回營地</button>
+    </div>
+</div>
+
+<script>
+    // --- 音效與音樂系統 (Web Audio API) ---
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    let audioCtx;
+    let battleMusicInterval = null;
+
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new AudioContext();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+    }
+
+    function playTone(frequency, type, volume, startTimeOffset, duration) {
+        if (!audioCtx) return;
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        
+        oscillator.type = type;
+        oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime + startTimeOffset);
+        
+        gainNode.gain.setValueAtTime(volume, audioCtx.currentTime + startTimeOffset);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + startTimeOffset + duration);
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        
+        oscillator.start(audioCtx.currentTime + startTimeOffset);
+        oscillator.stop(audioCtx.currentTime + startTimeOffset + duration);
+    }
+
+    // 播放戰鬥背景音樂 (BGM)
+    function playBattleMusic() {
+        stopBattleMusic();
+        initAudio();
+
+        const playLoop = () => {
+            if (!audioCtx) return;
+            
+            // 8-bit 風格旋律 (C4 -> G3 -> C4 -> E4)
+            playTone(261.63, 'sawtooth', 0.05, 0.0, 0.15); // C4
+            playTone(196.00, 'sawtooth', 0.05, 0.2, 0.15); // G3
+            playTone(261.63, 'sawtooth', 0.05, 0.4, 0.15); // C4
+            playTone(329.63, 'sawtooth', 0.06, 0.6, 0.25); // E4
+            
+            // 低音拍子 (C3)
+            playTone(130.81, 'triangle', 0.08, 0.0, 0.1);  // C3
+            playTone(130.81, 'triangle', 0.08, 0.4, 0.1);  // C3
+        };
+
+        playLoop();
+        battleMusicInterval = setInterval(playLoop, 800); // 每 800ms 循環一小節
+    }
+
+    // 停止背景音樂
+    function stopBattleMusic() {
+        if (battleMusicInterval) {
+            clearInterval(battleMusicInterval);
+            battleMusicInterval = null;
+        }
+    }
+
+    // 答對音效：清脆的雙音
+    function playCorrectSound() {
+        initAudio();
+        playTone(659.25, 'sine', 0.2, 0, 0.15); // E5
+        playTone(880.00, 'sine', 0.2, 0.15, 0.4); // A5
+    }
+
+    // 答錯音效：溫和的低音
+    function playGentleIncorrectSound() {
+        initAudio();
+        playTone(250, 'sine', 0.4, 0, 0.5); 
+        playTone(200, 'sine', 0.4, 0.1, 0.6);
+    }
+
+    // 勝利/進化音效：Ta-da!
+    function playVictorySound() {
+        initAudio();
+        playTone(523.25, 'triangle', 0.3, 0.0, 0.15);  // C5
+        playTone(659.25, 'triangle', 0.3, 0.15, 0.15); // E5
+        playTone(783.99, 'triangle', 0.3, 0.30, 0.15); // G5
+        playTone(1046.50, 'triangle', 0.4, 0.45, 0.6); // C6 (長音)
+    }
+
+    // 失敗音效：稍微遺憾的下行音
+    function playDefeatSound() {
+        initAudio();
+        playTone(392.00, 'sine', 0.3, 0.0, 0.3); // G4
+        playTone(311.13, 'sine', 0.3, 0.3, 0.3); // Eb4
+        playTone(261.63, 'sine', 0.3, 0.6, 0.6); // C4
+    }
+
+    // --- 遊戲邏輯與圖鑑 ---
+    const baseUrl = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/";
+    const pokedex = {
+        1: { name: "妙蛙種子", img: baseUrl+"1.png", evo: 2 },
+        2: { name: "妙蛙草", img: baseUrl+"2.png", evo: 3 },
+        3: { name: "妙蛙花", img: baseUrl+"3.png", evo: null },
+        4: { name: "小火龍", img: baseUrl+"4.png", evo: 5 },
+        5: { name: "火恐龍", img: baseUrl+"5.png", evo: 6 },
+        6: { name: "噴火龍", img: baseUrl+"6.png", evo: null },
+        7: { name: "傑尼龜", img: baseUrl+"7.png", evo: 8 },
+        8: { name: "卡咪龜", img: baseUrl+"8.png", evo: 9 },
+        9: { name: "水箭龜", img: baseUrl+"9.png", evo: null },
+        16: { name: "波波", img: baseUrl+"16.png", evo: 17 },
+        17: { name: "比比鳥", img: baseUrl+"17.png", evo: 18 },
+        18: { name: "大比鳥", img: baseUrl+"18.png", evo: null },
+        19: { name: "小拉達", img: baseUrl+"19.png", evo: 20 },
+        20: { name: "拉達", img: baseUrl+"20.png", evo: null }
+    };
+
+    const wildPokemonIds = [1, 4, 7, 16, 19];
+    let myCollection = [{ id: 4, wins: 0, uid: Date.now() }];
+    let activePlayerPokemon = null;
+    let activeEnemyId = null;
+    let playerHP = 3;
+    let enemyHP = 3;
+    let currentAnswer = 0;
+
+    function switchScreen(screenId) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(screenId).classList.add('active');
+    }
+
+    function showMenu() {
+        stopBattleMusic();
+        const grid = document.getElementById('collection-grid');
+        grid.innerHTML = '';
+        myCollection.forEach(p => {
+            const data = pokedex[p.id];
+            const card = document.createElement('div');
+            card.className = 'pokemon-card';
+            card.innerHTML = `
+                <img src="${data.img}">
+                <div style="font-weight: bold;">${data.name}</div>
+                <div class="wins-badge">勝場: ${p.wins}/2</div>
+            `;
+            card.onclick = () => {
+                initAudio();
+                startBattle(p);
+            };
+            grid.appendChild(card);
+        });
+        switchScreen('menu-screen');
+    }
+
+    function startBattle(playerPokemon) {
+        activePlayerPokemon = playerPokemon;
+        activeEnemyId = wildPokemonIds[Math.floor(Math.random() * wildPokemonIds.length)];
+        playerHP = 3;
+        enemyHP = 3;
+        updateBattleUI();
+        generateMathQuestion();
+        playBattleMusic();
+        switchScreen('battle-screen');
+    }
+
+    function updateBattleUI() {
+        const pData = pokedex[activePlayerPokemon.id];
+        const eData = pokedex[activeEnemyId];
+        document.getElementById('player-name').innerText = pData.name;
+        document.getElementById('player-img').src = pData.img;
+        document.getElementById('player-hp').innerText = '❤️'.repeat(playerHP);
+        document.getElementById('enemy-name').innerText = eData.name;
+        document.getElementById('enemy-img').src = eData.img;
+        document.getElementById('enemy-hp').innerText = '❤️'.repeat(enemyHP);
+    }
+
+    // --- 改為 0 到 10 的乘法 ---
+    function generateMathQuestion() {
+        const a = Math.floor(Math.random() * 11); 
+        const b = Math.floor(Math.random() * 11); 
+        const answer = a * b;
+        
+        document.getElementById('math-question').innerText = `${a} × ${b} = ?`;
+        currentAnswer = answer;
+        generateOptions(answer);
+    }
+
+    function generateOptions(correctAnswer) {
+        let options = new Set([correctAnswer]);
+        while(options.size < 4) {
+            let wrong = correctAnswer + Math.floor(Math.random() * 25) - 12;
+            if (wrong >= 0 && wrong !== correctAnswer) {
+                options.add(wrong);
+            }
+        }
+        
+        let optArray = Array.from(options).sort(() => Math.random() - 0.5);
+        const grid = document.getElementById('answers-grid');
+        grid.innerHTML = '';
+        optArray.forEach(val => {
+            const btn = document.createElement('button');
+            btn.className = 'btn-answer';
+            btn.innerText = val;
+            btn.onclick = () => checkAnswer(val);
+            grid.appendChild(btn);
+        });
+    }
+
+    function checkAnswer(selected) {
+        initAudio();
+        
+        if (selected === currentAnswer) {
+            playCorrectSound();
+            enemyHP--;
+            shakeElement('enemy-img');
+            updateBattleUI();
+            
+            if (enemyHP <= 0) {
+                stopBattleMusic();
+                setTimeout(winBattle, 500);
+            } else {
+                generateMathQuestion();
+            }
+        } else {
+            playGentleIncorrectSound();
+            playerHP--;
+            shakeElement('player-img');
+            updateBattleUI();
+            
+            if (playerHP <= 0) {
+                stopBattleMusic();
+                setTimeout(loseBattle, 500);
+            }
+        }
+    }
+
+    function shakeElement(id) {
+        const el = document.getElementById(id);
+        el.classList.remove('shake');
+        void el.offsetWidth;
+        el.classList.add('shake');
+    }
+
+    function winBattle() {
+        playVictorySound();
+        const enemyData = pokedex[activeEnemyId];
+        let messages = [`太棒了！你捕捉到了 ${enemyData.name}！`];
+        myCollection.push({ id: activeEnemyId, wins: 0, uid: Date.now() });
+        document.getElementById('result-img').src = enemyData.img;
+
+        activePlayerPokemon.wins++;
+        const pData = pokedex[activePlayerPokemon.id];
+        
+        if (activePlayerPokemon.wins >= 2 && pData.evo) {
+            const evoData = pokedex[pData.evo];
+            activePlayerPokemon.id = pData.evo;
+            activePlayerPokemon.wins = 0;
+            messages.push(`哇！你的 ${pData.name} 進化成 ${evoData.name} 了！`);
+            document.getElementById('result-img').src = evoData.img;
+        }
+
+        document.getElementById('result-title').innerText = "戰鬥勝利！";
+        document.getElementById('result-title').style.color = "#2a75bb";
+        document.getElementById('result-msg').innerHTML = messages.join('<br><br>');
+        switchScreen('result-screen');
+    }
+
+    function loseBattle() {
+        playDefeatSound();
+        document.getElementById('result-title').innerText = "戰鬥失敗...";
+        document.getElementById('result-title').style.color = "#ff5959";
+        document.getElementById('result-img').src = pokedex[activePlayerPokemon.id].img;
+        document.getElementById('result-msg').innerText = "寶可夢失去戰鬥能力，多練習乘法再來挑戰吧！";
+        switchScreen('result-screen');
+    }
+
+    showMenu();
+</script>
+
+</body>
+</html>
